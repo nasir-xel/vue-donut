@@ -4,6 +4,7 @@
       :radius="70"
       :values="values"
       :maxValue="maxValue"
+      :colors="['red', 'skyblue', 'orange', 'hotpink', 'green', 'blue']"
       isHalf
       showValues
     />
@@ -16,7 +17,7 @@ import Donut from './components/Donut';
 export default {
   name: 'App',
   data: () => ({
-    values: [0.5e6, 1e6, 0.25e6, 0.5e6, 1e5],
+    values: [0.75e6, 0.5e6, 0.25e6, 0.5e6,0.25e6,0.25e6],
     maxValue: 25e5,
   }),
   components: {

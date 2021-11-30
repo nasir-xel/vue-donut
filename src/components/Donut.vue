@@ -1,22 +1,25 @@
 <template>
   <div class="donut">
-    <svg xmlns="http://www.w3.org/2000/svg" :width="svgBox" :height="svgBox">
-      <title>Layer 1</title>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      :width="svgBox"
+      :height="isHalf ? svgBox / 2 : svgBox"
+    >
       <circle
         id="svg_1"
         fill="#fff"
         :r="radius"
-        cy="50%"
+        :cy="isHalf ? yaxis : '50%'"
         cx="50%"
         class="donut-hole"
       />
       <circle
         id="svg_2"
         :stroke-width="strokeWidth"
-        stroke="#d2d3d4"
+        :stroke="isHalf ? 'rgba(0,0,0,0)' : '#d2d3d4'"
         fill="transparent"
         :r="radius"
-        cy="50%"
+        :cy="isHalf ? yaxis : '50%'"
         cx="50%"
         :class="{ 'donut-ring': true, 'is-half': isHalf }"
       />
@@ -29,18 +32,18 @@
           :stroke="donut.color"
           fill="transparent"
           :r="radius"
-          cy="50%"
+          :cy="isHalf ? yaxis : '50%'"
           cx="50%"
           class="donut-segment"
         />
       </template>
-      <rect
+      <!-- <rect
         width="100%"
         :height="svgBox / 2"
         y="50%"
         fill="#fff"
         v-show="isHalf"
-      />
+      /> -->
       <!-- Text -->
       <g class="chart-text">
         <text
@@ -50,9 +53,8 @@
           :x="donut.text.x"
           :y="donut.text.y"
           class="chart-percentage"
-          :fill="parseInt(donut.percent) >= 26 ? '#fff' : '#222'"
-          :dx="strokeWidth * -0.42"
-          :dy="strokeWidth * -0.01"
+          fill="#fff"
+          :dx="strokeWidth * -0.25"
         >
           {{ donut.percent }}
         </text>
@@ -60,11 +62,11 @@
           <slot />
         </text>
         <template v-if="isHalf && showValues">
-          <text :x="getLeftHandPosition" y="50%" class="chart-label">
-            {{ getLeftHandPosition }}
+          <text :x="getLeftHandPosition" y="85%" class="chart-label">
+            <slot name="left-hand">{{ minValue }}</slot>
           </text>
-          <text :x="getRightHandPosition" y="50%" class="chart-label">
-            {{ getRightHandPosition }}
+          <text :x="getRightHandPosition" y="85%" class="chart-label">
+            <slot name="right-hand">{{ valueInMillions }}</slot>
           </text>
         </template>
       </g>
@@ -105,7 +107,7 @@ export default {
     },
     colors: {
       type: Array,
-      default: ['red', 'skyblue', 'orange', 'cyan', 'green'],
+      default: ['red', 'skyblue', 'orange', 'hotpink', 'green'],
     },
   },
   created() {
@@ -113,6 +115,7 @@ export default {
   },
   data() {
     return {
+      yaxis: this.isHalf ? '80%' : '50%',
       lines: this.values,
       svgBox: Math.PI * this.radius, // pi * r  (assumed)
       circumference: 2 * Math.PI * this.radius, // 2 * pi * r (formula)
@@ -137,19 +140,28 @@ export default {
       return Number((this.svgBox - this.getLeftHandPosition).toFixed(2));
     },
     progressValues() {
-      const { isHalf, circumference, svgBox, lines, maxValue, colors, radius } =
-        this;
+      const {
+        isHalf,
+        circumference,
+        svgBox,
+        lines,
+        maxValue,
+        colors,
+        radius,
+        yaxis,
+      } = this;
 
       const FIRST_SEGMENT_OFFSET = svgBox;
       const CIRCLE_CENTER = svgBox / 2;
-      const TRANSLATE_ANGLE_IN_RADIANS = 3.14;
+      const TRANSLATE_ANGLE_IN_RADIANS = Math.PI;
+      const TRANSALTE_Y_AXIS = parseInt(yaxis) / 100; // 80% => 0.8
       let PRECEDING_SEGMENTS_LENGTH = 0;
       let PRECEDING_SEGMENTS_ANGLE = 0;
 
       return lines.map((line, index) => {
         // find percent of this line in overall donut's length
         const percentOfMaxValue = (line / maxValue) * 100;
-        // scaled-down value to donut length i.e. percentOfDonutLength
+        // scale-down value to donut length i.e. percentOfDonutLength
         const percentOfDonutLength = (percentOfMaxValue * circumference) / 100;
         const gap = circumference - percentOfDonutLength;
         const currentSegmentOffset =
@@ -161,8 +173,10 @@ export default {
         );
         const translatedAngle =
           TRANSLATE_ANGLE_IN_RADIANS + PRECEDING_SEGMENTS_ANGLE + angle / 2; // angle/2 -> put label in the center of arc
-        const xaxis = radius * Math.cos(translatedAngle) + CIRCLE_CENTER;
-        const yaxis = radius * Math.sin(translatedAngle) + CIRCLE_CENTER;
+        const xpos = radius * Math.cos(translatedAngle) + CIRCLE_CENTER;
+        const ypos =
+          radius * Math.sin(translatedAngle) +
+          (isHalf ? CIRCLE_CENTER * TRANSALTE_Y_AXIS : CIRCLE_CENTER);
 
         PRECEDING_SEGMENTS_ANGLE += angle;
         PRECEDING_SEGMENTS_LENGTH += isHalf
@@ -176,12 +190,21 @@ export default {
           offset: index == 0 ? FIRST_SEGMENT_OFFSET : currentSegmentOffset,
           color: colors[index],
           text: {
-            x: xaxis,
-            y: yaxis,
+            x: xpos,
+            y: ypos,
           },
           PRECEDING_SEGMENTS_LENGTH,
         };
       });
+    },
+    valueInMillions() {
+      if (this.maxValue > 999 && this.maxValue < 1000000) {
+        return this.maxValue / 1000 + 'K';
+      } else if (this.maxValue > 1000000) {
+        return this.maxValue / 1000000 + 'M';
+      } else if (this.maxValue < 999) {
+        return this.maxValue;
+      }
     },
   },
   methods: {
@@ -234,6 +257,6 @@ export default {
 }
 
 text {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 </style>
