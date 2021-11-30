@@ -1,6 +1,12 @@
 <template>
   <div id="app">
-    <Donut :radius="70" :value="value" :maxValue="maxValue"> 25 M </Donut>
+    <Donut
+      :radius="70"
+      :values="values"
+      :maxValue="maxValue"
+      isHalf
+      showValues
+    />
   </div>
 </template>
 
@@ -10,7 +16,7 @@ import Donut from './components/Donut';
 export default {
   name: 'App',
   data: () => ({
-    value: 2.25e6,
+    values: [0.5e6, 1e6, 0.25e6, 0.5e6, 1e5],
     maxValue: 25e5,
   }),
   components: {

@@ -1,5 +1,4 @@
 <template>
-  <!-- https://heyoka.medium.com/scratch-made-svg-donut-pie-charts-in-html5-2c587e935d72 -->
   <div class="donut">
     <svg xmlns="http://www.w3.org/2000/svg" :width="svgBox" :height="svgBox">
       <title>Layer 1</title>
@@ -21,46 +20,41 @@
         cx="50%"
         :class="{ 'donut-ring': true, 'is-half': isHalf }"
       />
-      <circle
-        id="svg_3"
-        :stroke-dashoffset="svgBox"
-        :stroke-dasharray="[progress.line, progress.gap]"
-        :stroke-width="strokeWidth"
-        :stroke="color"
-        fill="transparent"
-        :r="radius"
-        cy="50%"
-        cx="50%"
-        class="donut-segment"
-      />
-      <circle
-        id="svg_4"
-        :stroke-dashoffset="svgBox"
-        :stroke-dasharray="[progress.line, progress.gap]"
-        :stroke-width="strokeWidth"
-        :stroke="color"
-        fill="transparent"
-        :r="radius"
-        cy="50%"
-        cx="50%"
-        class="donut-segment"
-      />
+      <template v-for="(donut, i) in progressValues" :key="i">
+        <circle
+          :id="`circle_${i}`"
+          :stroke-dashoffset="donut.offset"
+          :stroke-dasharray="[donut.line, donut.gap]"
+          :stroke-width="strokeWidth"
+          :stroke="donut.color"
+          fill="transparent"
+          :r="radius"
+          cy="50%"
+          cx="50%"
+          class="donut-segment"
+        />
+      </template>
       <rect
         width="100%"
         :height="svgBox / 2"
         y="50%"
         fill="#fff"
-        v-if="isHalf"
+        v-show="isHalf"
       />
       <!-- Text -->
       <g class="chart-text">
         <text
-          x="50%"
-          y="19%"
+          v-for="(donut, i) in progressValues"
+          :key="i"
+          :id="`text_${i}`"
+          :x="donut.text.x"
+          :y="donut.text.y"
           class="chart-percentage"
-          :fill="parseInt(progress.percent) >= 26 ? '#fff' : '#222'"
+          :fill="parseInt(donut.percent) >= 26 ? '#fff' : '#222'"
+          :dx="strokeWidth * -0.42"
+          :dy="strokeWidth * -0.01"
         >
-          {{ progress.percent }}
+          {{ donut.percent }}
         </text>
         <text x="50%" y="50%" class="chart-number">
           <slot />
@@ -101,35 +95,37 @@ export default {
       type: Number,
       default: 0.0,
     },
-    value: {
-      type: Number,
-      default: 30,
-    },
     maxValue: {
       type: Number,
       default: 300,
     },
-    color: {
-      type: String,
-      default: 'darkblue',
+    values: {
+      type: Array,
+      default: [30],
+    },
+    colors: {
+      type: Array,
+      default: ['red', 'skyblue', 'orange', 'cyan', 'green'],
     },
   },
   created() {
-    if (this.value > this.maxValue) this.line = this.maxValue;
+    // if (this.value > this.maxValue) this.line = this.maxValue;
   },
   data() {
     return {
-      line: this.value,
+      lines: this.values,
       svgBox: Math.PI * this.radius, // pi * r  (assumed)
       circumference: 2 * Math.PI * this.radius, // 2 * pi * r (formula)
     };
   },
   computed: {
     radiusBoxWidth() {
+      // Need this box to find big box's empty space width of any side
       // left-side width + diameter + right-side width
       return this.strokeWidth + this.radius * 2 + this.strokeWidth;
     },
     getLeftHandPosition() {
+      // Subtract big box from small box to get big box' side's width
       // svgBox width - radiusBox width divide by 2 to get left only position
       // add strokeWidth to stay inside
       return Number(
@@ -140,23 +136,61 @@ export default {
       // subtract width till left hand from svgBox to get last hand position
       return Number((this.svgBox - this.getLeftHandPosition).toFixed(2));
     },
-    // Redundant
-    strokDashArray() {
-      const line = this.line;
-      const gap = this.circumference - this.line;
+    progressValues() {
+      const { isHalf, circumference, svgBox, lines, maxValue, colors, radius } =
+        this;
 
-      return [line, gap];
+      const FIRST_SEGMENT_OFFSET = svgBox;
+      const CIRCLE_CENTER = svgBox / 2;
+      const TRANSLATE_ANGLE_IN_RADIANS = 3.14;
+      let PRECEDING_SEGMENTS_LENGTH = 0;
+      let PRECEDING_SEGMENTS_ANGLE = 0;
+
+      return lines.map((line, index) => {
+        // find percent of this line in overall donut's length
+        const percentOfMaxValue = (line / maxValue) * 100;
+        // scaled-down value to donut length i.e. percentOfDonutLength
+        const percentOfDonutLength = (percentOfMaxValue * circumference) / 100;
+        const gap = circumference - percentOfDonutLength;
+        const currentSegmentOffset =
+          circumference - (PRECEDING_SEGMENTS_LENGTH + FIRST_SEGMENT_OFFSET);
+
+        const angle = this.findAngleInRadians(
+          isHalf ? percentOfDonutLength / 2 : percentOfDonutLength,
+          radius
+        );
+        const translatedAngle =
+          TRANSLATE_ANGLE_IN_RADIANS + PRECEDING_SEGMENTS_ANGLE + angle / 2; // angle/2 -> put label in the center of arc
+        const xaxis = radius * Math.cos(translatedAngle) + CIRCLE_CENTER;
+        const yaxis = radius * Math.sin(translatedAngle) + CIRCLE_CENTER;
+
+        PRECEDING_SEGMENTS_ANGLE += angle;
+        PRECEDING_SEGMENTS_LENGTH += isHalf
+          ? percentOfDonutLength / 2
+          : percentOfDonutLength;
+
+        return {
+          line: isHalf ? percentOfDonutLength / 2 : percentOfDonutLength,
+          gap: isHalf ? gap + percentOfDonutLength / 2 : gap,
+          percent: percentOfMaxValue.toFixed(0) + '%',
+          offset: index == 0 ? FIRST_SEGMENT_OFFSET : currentSegmentOffset,
+          color: colors[index],
+          text: {
+            x: xaxis,
+            y: yaxis,
+          },
+          PRECEDING_SEGMENTS_LENGTH,
+        };
+      });
     },
-    progress() {
-      const percentOfMaxValue = (this.line / this.maxValue) * 100;
-      const percentOfDonut = (percentOfMaxValue * this.circumference) / 100;
-      const gap = this.circumference - percentOfDonut;
-
-      return {
-        line: this.isHalf ? percentOfDonut / 2 : percentOfDonut,
-        gap: this.isHalf ? gap / 2 : gap,
-        percent: percentOfMaxValue.toFixed(0) + '%',
-      };
+  },
+  methods: {
+    findAngleInRadians(arcLength, radius) {
+      // Arc length (L) = (θ/360) * 2πr  ==> θ = (L/2πr) * 360 (result in degree)
+      // L = rθ  ==> θ = L/r  (result in radian)
+      const angle = arcLength / radius;
+      console.log({ angle });
+      return angle;
     },
   },
 };
@@ -199,7 +233,7 @@ export default {
   transform: translateY(0.7em);
 }
 
-/* .is-half {
-  stroke: #fff;
-} */
+text {
+  font-size: 0.85rem;
+}
 </style>
